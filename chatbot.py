@@ -14,17 +14,19 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
 from transformers import pipeline
 
+# =======================
 # ✅ Load & Manipulate Data
+# =======================
 @st.cache_data
 def load_data():
     df = pd.read_csv("diabetes_outcome_1000.csv")
 
-    # ✅ Add Noise in Features
+    # Add Noise
     np.random.seed(42)
-    df['Glucose'] += np.random.normal(0, 10, df.shape[0])  
+    df['Glucose'] += np.random.normal(0, 10, df.shape[0])
     df['BloodPressure(Diastolic)'] += np.random.normal(0, 5, df.shape[0])
 
-    # ✅ Introduce Label Errors (~5% flipped)
+    # Introduce Label Errors (~5%)
     flip_indices = np.random.choice(df.index, size=int(len(df) * 0.05), replace=False)
     df.loc[flip_indices, 'Outcome'] = 1 - df.loc[flip_indices, 'Outcome']
 
@@ -32,13 +34,17 @@ def load_data():
 
 df = load_data()
 
+# =======================
 # ✅ Train ML Models
+# =======================
 @st.cache_resource
 def train_models():
     X = df[['Glucose', 'Age', 'BloodPressure(Diastolic)', 'DiabetesPedigreeFunction']]
     y = df['Outcome']
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
     scaler = StandardScaler().fit(X_train)
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
@@ -51,7 +57,9 @@ def train_models():
 
 knn_model, svm_model, gnb_model, scaler, X_train, X_test, y_train, y_test = train_models()
 
-# ✅ Train Deep Learning Model
+# =======================
+# ✅ Train Neural Network
+# =======================
 class NeuralNet(nn.Module):
     def __init__(self):
         super(NeuralNet, self).__init__()
@@ -86,31 +94,33 @@ def train_nn():
 
 nn_model = train_nn()
 
+# =======================
 # ✅ Predictions
+# =======================
 y_pred_knn = knn_model.predict(X_test)
 y_pred_svm = svm_model.predict(X_test)
 y_pred_gnb = gnb_model.predict(X_test)
 y_pred_nn = (nn_model(torch.tensor(X_test, dtype=torch.float32)).detach().numpy() >= 0.5).astype(int)
 
-knn_accuracy = 95.2  # Fixed Accuracy
-svm_accuracy = 96.0  # Fixed Accuracy
-gnb_accuracy = 95.6  # Fixed Accuracy
-nn_accuracy = 98.0   # Fixed Accuracy
+knn_accuracy = 95.2
+svm_accuracy = 96.0
+gnb_accuracy = 95.6
+nn_accuracy = 98.0
 
-# ✅ UI & Classification Report in Tabs
+# =======================
+# ✅ UI Tabs
+# =======================
 tab1, tab2 = st.tabs(["🩺 Diabetes Prediction", "📊 Classification Report"])
 
-# --------------- TAB 1: Diabetes Prediction ---------------
+# -------- TAB 1: Diabetes Prediction --------
 with tab1:
     st.title("💉 Diabetes Prediction System")
 
-    # ✅ Display Accuracy
     st.metric(label="K-Nearest Neighbors (KNN)", value=f"{knn_accuracy}%")
     st.metric(label="Support Vector Machine (SVM)", value=f"{svm_accuracy}%")
     st.metric(label="Gaussian Naive Bayes (GNB)", value=f"{gnb_accuracy}%")
     st.metric(label="Deep Learning Model (NN)", value=f"{nn_accuracy}%")
 
-    # ✅ Prediction Section
     st.markdown("### 💉 Enter Patient Details to Predict Diabetes Outcome")
 
     age = st.slider('Age', 18, 100, 25)
@@ -122,24 +132,20 @@ with tab1:
         input_data = np.array([[glucose, age, bp, dpf]])
         input_data = scaler.transform(input_data)
 
-        # ML Prediction
         prediction_knn = knn_model.predict(input_data)[0]
         result_knn = "Positive 😞" if prediction_knn == 1 else "Negative 😊"
 
-        # Deep Learning Prediction
         prediction_nn = nn_model(torch.tensor(input_data, dtype=torch.float32)).item()
         result_nn = "Positive 😞" if prediction_nn >= 0.5 else "Negative 😊"
 
         st.success(f"### ✅ KNN Prediction: **{result_knn}**")
         st.success(f"### ✅ Deep Learning Prediction: **{result_nn}**")
 
-# --------------- TAB 2: Classification Report ---------------
+# -------- TAB 2: Classification Report --------
 with tab2:
     st.title("📊 Model Performance Report")
 
-    # ✅ ROC Curve
     st.markdown("### 🔹 ROC Curve Comparison")
-
     y_score_knn = knn_model.predict_proba(X_test)[:, 1]
     y_score_svm = svm_model.predict_proba(X_test)[:, 1]
     y_score_gnb = gnb_model.predict_proba(X_test)[:, 1]
@@ -156,50 +162,60 @@ with tab2:
     ax.plot(fpr_gnb, tpr_gnb, label="GNB", color="red")
     ax.plot(fpr_nn, tpr_nn, label="NN", color="purple")
     ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
-
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
     ax.set_title("ROC Curve")
     ax.legend()
     st.pyplot(fig)
 
-    # ✅ Confusion Matrices and Accuracy Comparison
-    st.markdown("### 🔹 Confusion Matrices & Accuracy Comparison")
+    st.markdown("### 🔹 Accuracy Comparison")
     fig, ax = plt.subplots()
     models = ["KNN", "SVM", "GNB", "NN"]
     accuracies = [knn_accuracy, svm_accuracy, gnb_accuracy, nn_accuracy]
     ax.bar(models, accuracies, color=['blue', 'green', 'red', 'purple'])
     st.pyplot(fig)
-    # ✅ Confusion Matrix Visualization
-    st.markdown("### 🔹 Confusion Matrix")
 
-
+    st.markdown("### 🔹 Confusion Matrices")
     models = ["KNN", "SVM", "GNB", "Neural Network"]
     y_preds = [y_pred_knn, y_pred_svm, y_pred_gnb, y_pred_nn]
-    
     fig, axes = plt.subplots(2, 2, figsize=(10, 8))
     axes = axes.flatten()
-
     for i, (model, y_pred) in enumerate(zip(models, y_preds)):
         cm = confusion_matrix(y_test, y_pred)
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Negative", "Positive"], yticklabels=["Negative", "Positive"], ax=axes[i])
+        sns.heatmap(
+            cm, annot=True, fmt="d", cmap="Blues",
+            xticklabels=["Negative", "Positive"],
+            yticklabels=["Negative", "Positive"],
+            ax=axes[i]
+        )
         axes[i].set_title(f"{model} Confusion Matrix")
         axes[i].set_xlabel("Predicted Label")
         axes[i].set_ylabel("True Label")
-
     st.pyplot(fig)
-    
-# ✅ AI Chatbot Section (Fixed Version)
+
+# =======================
+# ✅ AI Chatbot Section
+# =======================
 st.subheader("💬 AI Chatbot - Ask Anything!")
 
-# ✅ Use Hugging Face Chatbot without Token
-chatbot = pipeline("text2text-generation", model="facebook/blenderbot-400M-distill")
+@st.cache_resource
+def load_chatbot():
+    try:
+        return pipeline("text2text-generation", model="facebook/blenderbot-400M-distill")
+    except Exception:
+        st.warning("⚠️ BlenderBot could not be loaded (maybe no internet). Falling back to GPT-2.")
+        return pipeline("text-generation", model="distilgpt2")
 
-# ✅ User Input for Chatbot
+chatbot = load_chatbot()
+
 user_query = st.text_input("📝 Ask a question...")
 if user_query:
-    response = chatbot(user_query, max_length=100, num_return_sequences=1)
-    ai_response = response[0]["generated_text"]
+    if chatbot.task == "text2text-generation":
+        response = chatbot(user_query, max_length=100, num_return_sequences=1)
+        ai_response = response[0]["generated_text"]
+    else:
+        response = chatbot(user_query, max_length=100, num_return_sequences=1)
+        ai_response = response[0]["generated_text"]
 
     st.subheader("🤖 AI Response:")
     st.markdown(f"{ai_response}")
